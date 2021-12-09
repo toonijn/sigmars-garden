@@ -45,6 +45,7 @@ def screenshot(region=None):
     s = pyautogui.screenshot(region=region)
     pxl_data = np.array(s.getdata(), dtype="uint8")
     pxl_data.resize((region[3], region[2], 3))
+    ski.io.imsave("game.png", pxl_data)
     return pxl_data
 
 
