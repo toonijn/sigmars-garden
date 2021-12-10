@@ -32,8 +32,6 @@ def normalize_offset(pxl):
     return pxl
 
 new_game = ski.io.imread("new-game.png")
-empty = ski.io.imread("empty.png")
-empty = normalize_offset(empty)
 
 
 
