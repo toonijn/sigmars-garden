@@ -30,6 +30,7 @@ full_sigmars_garden = {
     "M3": 1,
     "M4": 1,
     "M5": 1,
+    'QU': 0,
 }
 
 full_sigmars_garden2 = dict(full_sigmars_garden)
