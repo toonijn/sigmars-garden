@@ -1,7 +1,7 @@
 cardinals = ["FI", "WA", "AI", "EA"]
 metals = ["M0", "M1", "M2", "M3", "M4", "M5"]
 
-elements = cardinals + metals + ["CH", "HG", "LI", "DE"]
+elements = cardinals + metals + ["CH", "HG", "LI", "DE", "QU"]
 
 possible_pairings = set(map(tuple, map(sorted, [
     (a, a) for a in cardinals
@@ -13,42 +13,61 @@ possible_pairings = set(map(tuple, map(sorted, [
     ("LI", "DE"), ("CH", "CH")
 ])))
 
-n = [(-1,0),(0,1),(1,1),(1,0),(0,-1),(-1,-1)]
+n = [(-1, 0), (0, 1), (1, 1), (1, 0), (0, -1), (-1, -1)]
+
+full_sigmars_garden = {
+    "FI": 8,
+    "WA": 8,
+    "EA": 8,
+    "AI": 8,
+    "CH": 4,
+    "LI": 4,
+    "DE": 4,
+    "HG": 5,
+    "M0": 1,
+    "M1": 1,
+    "M2": 1,
+    "M3": 1,
+    "M4": 1,
+    "M5": 1,
+}
+
+full_sigmars_garden2 = dict(full_sigmars_garden)
+full_sigmars_garden2.update({
+    'QU': 2,
+    'LI': 3,
+    'DE': 3
+})
+
+
+def neighbors(i, j):
+    for di, dj in n:
+        yield i + di, j + dj
+
 
 class Board:
     def __init__(self):
         self.tiles = {}
+        self.inverse_tiles = {e: set() for e in elements}
+        self.free = {}
+        self.inverse_free = {e: set() for e in elements}
 
     def counts(self):
-        counts = {i: 0 for i in elements}
-        for v in self.tiles.values():
-            counts[v] += 1
-        return counts
-
-    def is_full(self):
-        return self.counts() == {
-            "FI": 8,
-            "WA": 8,
-            "EA": 8,
-            "AI": 8,
-            "CH": 4,
-            "LI": 4,
-            "DE": 4,
-            "HG": 5,
-            "M0": 1,
-            "M1": 1,
-            "M2": 1,
-            "M3": 1,
-            "M4": 1,
-            "M5": 1,
+        return {
+            e: len(s) for e, s in self.inverse_tiles.items()
         }
-    
+
+    def is_full(self, sigmars_garden2=False):
+        sg = full_sigmars_garden2 if sigmars_garden2 else full_sigmars_garden
+        return all(sg[e] == len(p) for e, p in self.inverse_tiles.items())
+
     def is_free(self, position):
         e = self.tiles[position]
-        if e in metals:
-            if len(set(self.tiles.values()) & set(metals[:metals.index(e)])) > 0:
-                return False
-        
+        if e[0] == 'M':
+            for i in range(int(e[1])):
+                if len(self.inverse_tiles['M'+str(i)]) > 0:
+                    return False
+
         i, j = position
         for k in range(6):
             if all((i + n[k-l][0], j + n[k-l][1]) not in self.tiles for l in range(3)):
@@ -57,29 +76,77 @@ class Board:
 
     def pairings(self):
         l = []
-        free = [(p,v) for p, v in self.tiles.items() if self.is_free(p)]
-        for (pa, a) in free:
-            for (pb, b) in free:
+        for (pa, a) in self.free.items():
+            for (pb, b) in self.free.items():
                 if pb == pa:
                     break
                 if (a, b) in possible_pairings or (b, a) in possible_pairings:
                     l.append((pa, pb))
-        if (5,5) in self.tiles and self.is_free((5,5)):
-            l.append(((5,5),))
-        return l 
-    
+
+        for f5 in self.inverse_free["M5"]:
+            l.append((f5,))
+
+        if self.inverse_free["QU"] and all(map(self.inverse_free.get, cardinals)):
+            for qu in self.inverse_free["QU"]:
+                for fi in self.inverse_free["FI"]:
+                    for wa in self.inverse_free["WA"]:
+                        for ai in self.inverse_free["AI"]:
+                            for ea in self.inverse_free["EA"]:
+                                l.append((qu, fi, wa, ai, ea))
+        return l
 
     def has_hope(self):
         counts = self.counts()
+        qu = len(self.inverse_tiles['QU'])
+
         odds = 0
-        for c in cardinals:
-            if counts[c] % 2 == 1:
+        for e in cardinals:
+            c = counts[e]
+            if c < qu:
+                return False
+            if (c - qu) % 2 == 1:
                 odds += 1
         if odds > counts["CH"]:
             return False
-        
+
         return True
 
+    def _add_free(self, p, e):
+        if p not in self.free:
+            self.free[p] = e
+            self.inverse_free[e].add(p)
+
+    def _remove_free(self, p, e):
+        if p in self.free:
+            del self.free[p]
+            self.inverse_free[e].remove(p)
+
+    def update_free_around(self, ij):
+        for p in neighbors(*ij):
+            if p in self.tiles:
+                if self.is_free(p):
+                    self._add_free(p, self.tiles[p])
+                else:
+                    self._remove_free(p, self.tiles[p])
+
+    def remove_tile(self, p):
+        e = self.tiles[p]
+        del self.tiles[p]
+        self.inverse_tiles[e].remove(p)
+        self._remove_free(p, e)
+        self.update_free_around(p)
+
+    def _unsafe_add_tile(self, p, e):
+        self.tiles[p] = e
+        self.inverse_tiles[e].add(p)
+        if self.is_free(p):
+            self._add_free(p, e)
+        self.update_free_around(p)
+
+    def add_tile(self, p, e):
+        assert e in elements, f"'{e}' is not an element"
+        assert p not in self.tiles, f"'{p}' is not free"
+        self._unsafe_add_tile(p, e)
 
     def solve(self, steps=None):
         if not self.has_hope():
@@ -92,11 +159,11 @@ class Board:
             for p in self.pairings():
                 v = tuple(map(self.tiles.get, p))
                 for i in p:
-                    del self.tiles[i]
-                
+                    self.remove_tile(i)
+
                 steps.append(p)
                 yield from self.solve(steps)
                 steps.pop()
-                
+
                 for i, u in zip(p, v):
-                    self.tiles[i] = u
+                    self._unsafe_add_tile(i, u)

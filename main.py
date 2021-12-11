@@ -5,7 +5,6 @@ import click
 import glob
 import sys
 from board import Board
-from matplotlib import pyplot as plt
 from time import sleep
 
 tile_width = 66
@@ -134,7 +133,7 @@ class SigmarsGarden:
                 continue
             tile = self.find_tile(simplify_block(blk))
             if tile != "__":
-                board.tiles[i, j] = tile
+                board.add_tile((i, j), tile)
         return board
 
     def execute_clicks(self, clicks):
@@ -162,8 +161,6 @@ class SigmarsGarden:
 @click.command()
 @click.option('--offset', default=None)
 def main(offset):
-    plt.figure(figsize=(10, 10))
-
     garden = SigmarsGarden()
     if offset is None:
         print("Calculating offset...")
@@ -184,19 +181,23 @@ def main(offset):
         board = garden.current_board()
         print(board.counts())
         print(sum(board.counts().values()))
-        if board.is_full():
-            solution = next(board.solve())
-            print(solution)
+        if board.is_full() or board.is_full(True):
+            if board.is_full():
+                print("Solving Sigmar's Garden")
+            else:
+                print("Solving Sigmar's Garden 2")
 
-            garden.execute_clicks([c for r in solution for c in r])
+            try:
+                solution = next(board.solve())
+                print(solution)
+
+                garden.execute_clicks([c for r in solution for c in r])
+            except StopIteration:
+                print("No solution found. Skipping to the next puzzle.")
         else:
             print("Probably the board has not been parsed correctly. Skipping to the next puzzle.")
         garden.new_game()
-        sleep(7)
-
-    # assert board.is_full(), "Board has been wrongly read"
-
-    # plt.show()
+        sleep(6)
 
 
 if __name__ == '__main__':
